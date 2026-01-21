@@ -31,7 +31,7 @@ class RuTrackerService:
         
         params = {
             "nm": query,
-            "f": "2458" # Nintendo Switch category ID
+            "f": "1605" # Nintendo Switch category ID
         }
         
         response = await self.client.get("tracker.php", params=params)
