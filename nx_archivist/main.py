@@ -31,7 +31,15 @@ except ImportError as e:
         logger.exception(f"Failed to import modules: {e}")
     sys.exit(1)
 except Exception as e:
-    logger.exception(f"Unexpected error during import: {e}")
+    if "ValidationError" in str(type(e).__name__):
+        logger.error("\n" + "!"*60)
+        logger.error("ПОМИЛКА КОНФІГУРАЦІЇ: Відсутні або неправильні дані у файлі .env")
+        logger.error("Переконайтеся, що ви створили файл .env та заповнили всі обов'язкові поля:")
+        logger.error("BOT_TOKEN, API_ID, API_HASH, STORAGE_CHANNEL_ID, ENCRYPTION_PASSWORD")
+        logger.error(f"\nДеталі помилки:\n{e}")
+        logger.error("!"*60 + "\n")
+    else:
+        logger.exception(f"Unexpected error during import: {e}")
     sys.exit(1)
 
 async def main():
