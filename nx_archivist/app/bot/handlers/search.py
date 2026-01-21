@@ -32,7 +32,7 @@ async def handle_search(message: Message):
         await message.answer("Нічого не знайдено.")
         return
         
-    for res in results[:5]: # Show top 5
+    for res in results[:15]: # Show top 15
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Вибрати цей реліз", callback_data=f"select_{res['id']}")]
         ])

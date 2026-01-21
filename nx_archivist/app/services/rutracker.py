@@ -42,13 +42,14 @@ class RuTrackerService:
         results = []
         
         # RuTracker tracker.php table parsing logic
-        rows = soup.select("tr.tCenter")
+        # We look for all rows that contain a topic link
+        rows = soup.find_all("tr")
         for row in rows:
             cells = row.find_all("td")
             if len(cells) < 4:
                 continue
                 
-            title_cell = cells[3].find("a", class_="tLink")
+            title_cell = row.find("a", class_="tLink")
             if not title_cell:
                 continue
                 
