@@ -1,12 +1,25 @@
 import asyncio
+import os
 from pyrogram import Client
+from dotenv import load_dotenv
 
 async def main():
     print("--- Генератор Session String для Pyrogram ---")
-    api_id = input("Введіть вашій API_ID: ")
-    api_hash = input("Введіть вашій API_HASH: ")
     
-    async with Client(":memory:", api_id=int(api_id), api_hash=api_hash) as app:
+    # Load from .env if exists
+    load_dotenv()
+    api_id = os.getenv("API_ID")
+    api_hash = os.getenv("API_HASH")
+    
+    if not api_id or not api_hash:
+        print("❌ Помилка: API_ID або API_HASH не знайдено в .env")
+        api_id = input("Введіть вашій API_ID: ")
+        api_hash = input("Введіть вашій API_HASH: ")
+    else:
+        print(f"✅ Використовую API_ID: {api_id} з файлу .env")
+
+    # Use in_memory=True to avoid sqlite3 issues
+    async with Client("temp_session", api_id=int(api_id), api_hash=api_hash, in_memory=True) as app:
         session_string = await app.export_session_string()
         print("\n" + "="*50)
         print("ВАШ SESSION_STRING (скопіюйте його повністю):")
@@ -17,4 +30,9 @@ async def main():
         print(f"TELEGRAM_SESSION_STRING={session_string}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"\n❌ Виникла помилка: {e}")
