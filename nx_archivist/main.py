@@ -45,6 +45,8 @@ except Exception as e:
 async def main():
     try:
         logger.info("Starting bot initialization...")
+        logger.info(f"[CONFIG] Telegram Premium: {config.IS_TELEGRAM_PREMIUM}")
+        logger.info(f"[CONFIG] Storage Channel ID: {config.STORAGE_CHANNEL_ID}")
         
         # Initialize DB
         await init_db()
