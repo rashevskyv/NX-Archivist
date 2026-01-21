@@ -40,7 +40,10 @@ class Archivist:
                                 password=config.ENCRYPTION_PASSWORD,
                                 filters=filters) as archive:
             for f in source_files:
-                archive.write(f, arcname=os.path.basename(f))
+                if os.path.isdir(f):
+                    archive.writeall(f, arcname=os.path.basename(f))
+                else:
+                    archive.write(f, arcname=os.path.basename(f))
                 
         # Splitting logic (if file size > split_size)
         file_size = os.path.getsize(archive_path)

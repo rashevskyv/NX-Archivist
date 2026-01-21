@@ -57,21 +57,28 @@ async def handle_select_release(callback: CallbackQuery):
     files_status = await torrent_manager.check_deduplication(handle)
     
     response = "📂 **Список файлів у релізі:**\n\n"
-    to_download = []
+    to_download_indices = []
     
     for f in files_status:
         status_icon = "✅" if f["exists"] else "📥"
-        response += f"{status_icon} `{f['name']}` ({f['size'] / (1024**2):.1f} MB)\n"
+        if f.get("is_folder"):
+            response += f"{status_icon} 📁 `{f['name']}` ({len(f['indices'])} файлів, {f['size'] / (1024**2):.1f} MB)\n"
+        else:
+            response += f"{status_icon} `{f['name']}` ({f['size'] / (1024**2):.1f} MB)\n"
+            
         if f["exists"]:
             response += f"   🔗 [Посилання]({f['link']})\n"
         else:
-            to_download.append(f["index"])
+            if f.get("is_folder"):
+                to_download_indices.extend(f["indices"])
+            else:
+                to_download_indices.append(f["index"])
             
-    if not to_download:
+    if not to_download_indices:
         response += "\n✨ Усі файли вже є в базі! Завантаження не потрібне."
         await callback.message.answer(response, parse_mode="Markdown")
     else:
-        response += f"\n🚀 Потрібно завантажити {len(to_download)} нових файлів."
+        response += f"\n🚀 Потрібно завантажити нові файли."
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Почати завантаження", callback_data=f"download_{topic_id}")]
         ])
@@ -97,56 +104,70 @@ async def handle_download(callback: CallbackQuery):
         return
         
     # 3. Download
-    await torrent_manager.start_selective_download(handle, to_download_indices)
+    all_to_download = []
+    for f in files_status:
+        if not f["exists"]:
+            if f.get("is_folder"):
+                all_to_download.extend(f["indices"])
+            else:
+                all_to_download.append(f["index"])
+                
+    await torrent_manager.start_selective_download(handle, all_to_download)
     await callback.message.answer("✅ Завантаження завершено. Починаю архівацію...")
     
-    # 4. Categorize and Process
-    downloaded_files = [torrent_manager.get_file_path(handle, i) for i in to_download_indices]
-    groups = Categorizer.group_dlcs(downloaded_files)
-    
+    # 4. Process each entity (file or folder)
     final_links = []
     
     async with async_session() as session:
-        for cat, files in groups.items():
-            if not files:
+        for entity in files_status:
+            if entity["exists"]:
                 continue
                 
-            # If DLCs > 5, they are already grouped in 'files' list
-            # We pack each category (or DLC pack) separately
+            # Determine source path(s)
+            if entity.get("is_folder"):
+                # For folder, we pack the directory itself
+                source_paths = [os.path.join(config.DOWNLOAD_DIR, entity["name"])]
+                cat = "Folder" # Or try to categorize based on folder name
+                entity_hash = entity["hash"]
+                original_name = entity["name"]
+            else:
+                source_paths = [torrent_manager.get_file_path(handle, entity["index"])]
+                cat = Categorizer.categorize(source_paths[0])
+                entity_hash = None # We don't have file hashes yet in this prototype, using name/size
+                original_name = os.path.basename(source_paths[0])
+
             archive_name = Archivist.generate_obfuscated_name()
-            parts = Archivist.pack_and_split(files, config.DOWNLOAD_DIR, archive_name)
+            parts = Archivist.pack_and_split(source_paths, config.DOWNLOAD_DIR, archive_name)
             
-            await callback.message.answer(f"📦 Завантажую {cat} ({len(parts)} частин)...")
+            await callback.message.answer(f"📦 Завантажую {original_name} ({len(parts)} частин)...")
             
             # 5. Upload and Save to DB
             for i, part in enumerate(parts):
-                link = await uploader.upload_file(part, caption=f"{cat} - Part {i+1}")
+                link = await uploader.upload_file(part, caption=f"{original_name} - Part {i+1}")
                 
-                # Register in DB (simplified for prototype)
-                # In real app, we'd link multiple parts to one FilesRegistry entry
-                for original_file in files:
-                    new_file = FilesRegistry(
-                        file_original_name=os.path.basename(original_file),
-                        file_size=os.path.getsize(original_file),
-                        category=cat
-                    )
-                    session.add(new_file)
-                    await session.flush()
-                    
-                    new_storage = TelegramStorage(
-                        file_id=new_file.id,
-                        telegram_message_link=link,
-                        archive_obfuscated_name=archive_name,
-                        is_parted=len(parts) > 1,
-                        part_number=i+1,
-                        total_parts=len(parts)
-                    )
-                    session.add(new_storage)
+                new_file = FilesRegistry(
+                    file_original_name=original_name,
+                    file_size=entity["size"],
+                    file_hash=entity_hash,
+                    category=cat
+                )
+                session.add(new_file)
+                await session.flush()
                 
-                if i == 0: # Store first part link for display
-                    final_links.append(f"🔹 **{cat}**: [Посилання]({link})")
+                new_storage = TelegramStorage(
+                    file_id=new_file.id,
+                    telegram_message_link=link,
+                    archive_obfuscated_name=archive_name,
+                    is_parted=len(parts) > 1,
+                    part_number=i+1,
+                    total_parts=len(parts)
+                )
+                session.add(new_storage)
+                
+                if i == 0:
+                    final_links.append(f"🔹 **{original_name}**: [Посилання]({link})")
                     
-            await session.commit()
+        await session.commit()
             
     response = "✨ **Обробка завершена!**\n\n" + "\n".join(final_links)
     await callback.message.answer(response, parse_mode="Markdown")
