@@ -29,11 +29,10 @@ def get_best_storage_path(base_subdir: str = "nx_archivist_data") -> str:
             except OSError:
                 continue
     else:
-        # For Linux, we can check common mount points or just use /
-        # A more robust way would be to parse /proc/mounts, but for now let's check / and /mnt
-        mounts = ["/", "/mnt", "/media", "/var/lib"]
+        # For Linux, check common mount points
+        mounts = ["/mnt", "/media", "/var/lib", os.path.expanduser("~"), "."]
         for mount in mounts:
-            if os.path.exists(mount):
+            if os.path.exists(mount) and os.access(mount, os.W_OK):
                 try:
                     total, used, free = shutil.disk_usage(mount)
                     if free > max_free:
@@ -43,9 +42,16 @@ def get_best_storage_path(base_subdir: str = "nx_archivist_data") -> str:
                     continue
 
     if not best_path:
+        # Fallback to local data directory in the project root
         best_path = os.path.abspath("data")
         
-    os.makedirs(best_path, exist_ok=True)
+    try:
+        os.makedirs(best_path, exist_ok=True)
+    except PermissionError:
+        # Final fallback to local data if even the "best" path failed
+        best_path = os.path.abspath("data")
+        os.makedirs(best_path, exist_ok=True)
+        
     return best_path
 
 def check_storage_limit(path: str, limit_gb: int) -> bool:
