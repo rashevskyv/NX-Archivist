@@ -11,6 +11,7 @@ from app.db.models import FilesRegistry, TelegramStorage
 from app.core.config import config
 import os
 import logging
+import shutil
 
 search_router = Router()
 rutracker = RuTrackerService()
@@ -166,6 +167,18 @@ async def handle_download(callback: CallbackQuery):
                 
                 if i == 0:
                     final_links.append(f"🔹 **{original_name}**: [Посилання]({link})")
+            
+            # 6. Cleanup if enabled
+            if config.DELETE_AFTER_UPLOAD:
+                for path in source_paths:
+                    try:
+                        if os.path.isdir(path):
+                            shutil.rmtree(path)
+                        else:
+                            os.remove(path)
+                        logging.info(f"Deleted source: {path}")
+                    except Exception as e:
+                        logging.error(f"Error deleting {path}: {e}")
                     
         await session.commit()
             
