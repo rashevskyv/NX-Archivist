@@ -1,6 +1,9 @@
 import shutil
 import os
 import platform
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_best_storage_path(base_subdir: str = "nx_archivist_data") -> str:
     """
@@ -8,6 +11,7 @@ def get_best_storage_path(base_subdir: str = "nx_archivist_data") -> str:
     """
     best_path = None
     max_free = 0
+    checked_mounts = []
 
     if platform.system() == "Windows":
         import ctypes
@@ -23,33 +27,54 @@ def get_best_storage_path(base_subdir: str = "nx_archivist_data") -> str:
         for drive in drives:
             try:
                 total, used, free = shutil.disk_usage(drive)
+                free_gb = free / (1024**3)
+                checked_mounts.append(f"{drive} ({free_gb:.1f} GB free)")
                 if free > max_free:
                     max_free = free
                     best_path = os.path.join(drive, base_subdir)
             except OSError:
                 continue
     else:
-        # For Linux, check common mount points
-        mounts = ["/mnt", "/media", "/var/lib", os.path.expanduser("~"), "."]
-        for mount in mounts:
+        # For Linux, try to get all mount points
+        mounts = set(["/mnt", "/media", "/var/lib", os.path.expanduser("~"), "."])
+        if os.path.exists("/proc/mounts"):
+            try:
+                with open("/proc/mounts", "r") as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            mount_point = parts[1]
+                            if mount_point.startswith(("/", "/mnt", "/media")):
+                                mounts.add(mount_point)
+            except Exception:
+                pass
+
+        for mount in sorted(list(mounts)):
             if os.path.exists(mount) and os.access(mount, os.W_OK):
                 try:
                     total, used, free = shutil.disk_usage(mount)
+                    free_gb = free / (1024**3)
+                    # Avoid duplicates or nested mounts showing same stats
+                    checked_mounts.append(f"{mount} ({free_gb:.1f} GB free)")
                     if free > max_free:
                         max_free = free
                         best_path = os.path.join(mount, base_subdir)
                 except OSError:
                     continue
 
+    logger.info(f"Checking storage locations: {', '.join(checked_mounts)}")
+
     if not best_path:
-        # Fallback to local data directory in the project root
         best_path = os.path.abspath("data")
+        logger.warning(f"No suitable external storage found. Falling back to: {best_path}")
+    else:
+        logger.info(f"Selected best storage: {best_path} ({max_free / (1024**3):.1f} GB free)")
         
     try:
         os.makedirs(best_path, exist_ok=True)
     except PermissionError:
-        # Final fallback to local data if even the "best" path failed
         best_path = os.path.abspath("data")
+        logger.error(f"Permission denied at selected path. Final fallback to: {best_path}")
         os.makedirs(best_path, exist_ok=True)
         
     return best_path
