@@ -72,8 +72,18 @@ async def main():
         logger.exception(f"Critical error during bot startup: {e}")
         raise
 
+async def cli_login():
+    from app.services.uploader import uploader
+    await uploader.interactive_login()
+
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    if len(sys.argv) > 1 and sys.argv[1] == "login":
+        try:
+            asyncio.run(cli_login())
+        except KeyboardInterrupt:
+            pass
+    else:
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            pass

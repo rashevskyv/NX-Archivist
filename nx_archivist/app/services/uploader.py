@@ -27,6 +27,13 @@ class Uploader:
     async def sign_in(self, phone: str, code: str):
         await self.client.sign_in(phone, code, phone_code_hash=self._phone_hash)
 
+    async def interactive_login(self):
+        """
+        Performs interactive login in the terminal.
+        """
+        await self.client.start()
+        print("✅ Авторизація успішна!")
+
     async def upload_file(self, file_path: str, caption: str = "") -> str:
         """
         Uploads a file to the storage channel and returns the message link.
@@ -50,3 +57,5 @@ class Uploader:
 
     def _progress_callback(self, current, total):
         pass
+
+uploader = Uploader()

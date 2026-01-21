@@ -22,7 +22,7 @@ uploader = Uploader()
 async def cmd_start(message: Message):
     await message.answer("Привіт! Я NX-Archivist. Надішли мені назву гри для пошуку на RuTracker.")
 
-@search_router.message(F.text)
+@search_router.message(F.text, ~F.text.startswith("/"))
 async def handle_search(message: Message):
     query = message.text
     await message.answer(f"Шукаю '{query}' на RuTracker...")
