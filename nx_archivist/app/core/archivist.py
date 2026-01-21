@@ -2,8 +2,11 @@ import py7zr
 import os
 import secrets
 import string
+import logging
 from typing import List, Optional
 from app.core.config import config
+
+logger = logging.getLogger(__name__)
 
 class Archivist:
     @staticmethod
@@ -25,10 +28,10 @@ class Archivist:
         archive_path = os.path.join(output_dir, f"{archive_name}.7z")
         
         # Determine split size
-        # 1.9GB = 1.9 * 1024 * 1024 * 1024 bytes
-        # 3.9GB = 3.9 * 1024 * 1024 * 1024 bytes
         limit_gb = 3.9 if config.IS_TELEGRAM_PREMIUM else 1.9
         split_size = int(limit_gb * 1024 * 1024 * 1024)
+        
+        logger.info(f"Packing archive. Premium: {config.IS_TELEGRAM_PREMIUM}, Limit: {limit_gb}GB ({split_size} bytes)")
         
         # py7zr doesn't support splitting directly during creation in a simple way
         # We might need to create the archive and then split it manually or use a different tool

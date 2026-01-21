@@ -18,7 +18,7 @@ try:
     from app.core.config import config
     from app.utils.storage import get_best_storage_path
     from app.db.base import init_db
-    from app.bot.handlers import search_router
+    from app.bot.handlers import search_router, auth_router
 except ImportError as e:
     if "libtorrent" in str(e) or "DLL load failed" in str(e):
         logger.error("\n" + "="*60)
@@ -61,6 +61,7 @@ async def main():
         
         # Register routers
         dp.include_router(search_router)
+        dp.include_router(auth_router)
         
         # Start polling
         logger.info("Bot started and polling...")
