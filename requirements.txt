@@ -1,0 +1,15 @@
+aiogram>=3.0.0
+telethon>=1.30.0
+pydantic-settings>=2.0.0
+sqlalchemy>=2.0.0
+aiosqlite>=0.19.0
+python-dotenv>=1.0.0
+py7zr>=0.20.0
+# libtorrent-python (installation may vary by OS)
+# For Linux: apt install python3-libtorrent
+# For Windows: pip install libtorrent
+libtorrent>=2.0.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+httpx>=0.24.0
+cryptg>=0.4.0

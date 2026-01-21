@@ -1,0 +1,68 @@
+import asyncio
+import logging
+import sys
+
+# Setup logging immediately to catch import errors
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("bot.log", encoding="utf-8")
+    ]
+)
+logger = logging.getLogger(__name__)
+
+try:
+    from aiogram import Bot, Dispatcher
+    from app.core.config import config
+    from app.utils.storage import get_best_storage_path
+    from app.db.base import init_db
+    from app.bot.handlers import search_router
+except ImportError as e:
+    if "libtorrent" in str(e) or "DLL load failed" in str(e):
+        logger.error("\n" + "="*60)
+        logger.error("ПОМИЛКА: Не вдалося завантажити libtorrent (DLL load failed).")
+        logger.error("Це зазвичай означає, що у вас не встановлено Microsoft Visual C++ Redistributable.")
+        logger.error("Будь ласка, завантажте та встановіть його за цим посиланням:")
+        logger.error("https://aka.ms/vs/17/release/vc_redist.x64.exe")
+        logger.error("="*60 + "\n")
+    else:
+        logger.exception(f"Failed to import modules: {e}")
+    sys.exit(1)
+except Exception as e:
+    logger.exception(f"Unexpected error during import: {e}")
+    sys.exit(1)
+
+async def main():
+    try:
+        logger.info("Starting bot initialization...")
+        
+        # Initialize DB
+        await init_db()
+        logger.info("Database initialized.")
+        
+        # Initialize storage
+        if not config.DOWNLOAD_DIR:
+            config.DOWNLOAD_DIR = get_best_storage_path()
+        logger.info(f"Storage initialized at: {config.DOWNLOAD_DIR}")
+
+        # Initialize Bot and Dispatcher
+        bot = Bot(token=config.BOT_TOKEN.get_secret_value())
+        dp = Dispatcher()
+        
+        # Register routers
+        dp.include_router(search_router)
+        
+        # Start polling
+        logger.info("Bot started and polling...")
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.exception(f"Critical error during bot startup: {e}")
+        raise
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
