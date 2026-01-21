@@ -8,8 +8,9 @@ logger = logging.getLogger(__name__)
 
 class Uploader:
     def __init__(self):
+        session_name = config.TELEGRAM_SESSION_STRING or "nx_archivist_userbot"
         self.client = Client(
-            "nx_archivist_userbot",
+            session_name,
             api_id=config.API_ID,
             api_hash=config.API_HASH,
             workdir="."

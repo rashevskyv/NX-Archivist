@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     API_ID: int
     API_HASH: str
     STORAGE_CHANNEL_ID: int
+    TELEGRAM_SESSION_STRING: str | None = None
     
     # RuTracker Auth
     RUTRACKER_USER: str | None = None
