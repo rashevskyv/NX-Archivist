@@ -8,13 +8,21 @@ logger = logging.getLogger(__name__)
 
 class Uploader:
     def __init__(self):
-        session_name = config.TELEGRAM_SESSION_STRING or "nx_archivist_userbot"
-        self.client = Client(
-            session_name,
-            api_id=config.API_ID,
-            api_hash=config.API_HASH,
-            workdir="."
-        )
+        if config.TELEGRAM_SESSION_STRING:
+            self.client = Client(
+                "nx_archivist_userbot",
+                session_string=config.TELEGRAM_SESSION_STRING,
+                api_id=config.API_ID,
+                api_hash=config.API_HASH,
+                workdir="."
+            )
+        else:
+            self.client = Client(
+                "nx_archivist_userbot",
+                api_id=config.API_ID,
+                api_hash=config.API_HASH,
+                workdir="."
+            )
         self._phone = None
         self._phone_code_hash = None
 
