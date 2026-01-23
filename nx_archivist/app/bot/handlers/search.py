@@ -43,6 +43,14 @@ async def handle_search(message: Message):
         await message.answer("Нічого не знайдено.")
         return
         
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    kb_status = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 Статус")]
+        ],
+        resize_keyboard=True
+    )
+        
     for res in results[:15]: # Show top 15
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Вибрати цей реліз", callback_data=f"select_{res['id']}")]
@@ -53,6 +61,9 @@ async def handle_search(message: Message):
             f"🌱 Сідів: {res['seeds']}",
             reply_markup=kb
         )
+    
+    # Send a final message with the status keyboard to ensure it's visible
+    await message.answer("Виберіть реліз або перевірте статус задач:", reply_markup=kb_status)
 
 @search_router.callback_query(F.data.startswith("select_"))
 async def handle_select_release(callback: CallbackQuery):
