@@ -20,7 +20,17 @@ uploader = Uploader()
 
 @search_router.message(Command("start"))
 async def cmd_start(message: Message):
-    await message.answer("Привіт! Я NX-Archivist. Надішли мені назву гри для пошуку на RuTracker.")
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 Статус")]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer(
+        "Привіт! Я NX-Archivist. Надішли мені назву гри для пошуку на RuTracker.",
+        reply_markup=kb
+    )
 
 @search_router.message(F.text, ~F.text.startswith("/"))
 async def handle_search(message: Message):
@@ -35,8 +45,7 @@ async def handle_search(message: Message):
         
     for res in results[:15]: # Show top 15
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Вибрати цей реліз", callback_data=f"select_{res['id']}")],
-            [InlineKeyboardButton(text="📊 Статус задач", callback_data="check_status")]
+            [InlineKeyboardButton(text="Вибрати цей реліз", callback_data=f"select_{res['id']}")]
         ])
         await message.answer(
             f"📦 {res['title']}\n"
@@ -220,6 +229,7 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
         if bot: await bot.send_message(chat_id, f"❌ Помилка у завданні `{task_id}`: {e}")
 
 @search_router.message(Command("status"))
+@search_router.message(F.text == "📊 Статус")
 async def cmd_status(message: Message):
     from app.core.tasks import task_manager
     tasks = task_manager.get_active_tasks()
@@ -246,5 +256,6 @@ async def cmd_status(message: Message):
 
 @search_router.callback_query(F.data == "check_status")
 async def handle_check_status(callback: CallbackQuery):
+    # This is kept for backward compatibility if any old messages are still around
     await cmd_status(callback.message)
     await callback.answer()

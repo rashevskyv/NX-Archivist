@@ -45,18 +45,24 @@ class RuTrackerService:
         # We look for all rows that contain a topic link
         rows = soup.find_all("tr")
         for row in rows:
+            # Skip rows that don't have enough cells or are headers
             cells = row.find_all("td")
-            if len(cells) < 4:
+            if len(cells) < 10: # Standard tracker table has ~10 columns
                 continue
                 
             title_cell = row.find("a", class_="tLink")
             if not title_cell:
                 continue
+            
+            # Skip the header row which often contains "Название темы"
+            title_text = title_cell.get_text(strip=True)
+            if "Название темы" in title_text or "Автор" in title_text:
+                continue
                 
             results.append({
-                "title": title_cell.get_text(strip=True),
+                "title": title_text,
                 "id": title_cell["href"].split("t=")[-1],
-                "size": cells[5].get_text(strip=True),
+                "size": cells[5].get_text(strip=True).replace("\xa0", " "),
                 "seeds": cells[6].get_text(strip=True)
             })
             
