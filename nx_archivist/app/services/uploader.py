@@ -1,82 +1,112 @@
-from pyrogram import Client
+from telethon import TelegramClient
+from telethon.sessions import StringSession
 from app.core.config import config
 import os
 import asyncio
 import logging
+import time
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 class Uploader:
     def __init__(self):
+        session = config.TELEGRAM_SESSION_NAME
         if config.TELEGRAM_SESSION_STRING:
-            self.client = Client(
-                "nx_archivist_userbot",
-                session_string=config.TELEGRAM_SESSION_STRING,
-                api_id=config.API_ID,
-                api_hash=config.API_HASH,
-                workdir="."
-            )
-        else:
-            self.client = Client(
-                "nx_archivist_userbot",
-                api_id=config.API_ID,
-                api_hash=config.API_HASH,
-                workdir="."
-            )
+            session = StringSession(config.TELEGRAM_SESSION_STRING)
+        
+        self.client = TelegramClient(
+            session,
+            api_id=config.API_ID,
+            api_hash=config.API_HASH
+        )
         self._phone = None
-        self._phone_code_hash = None
 
     async def is_authorized(self) -> bool:
-        if not self.client.is_connected:
+        if not self.client.is_connected():
             await self.client.connect()
-        try:
-            return await self.client.get_me() is not None
-        except Exception:
-            return False
+        return await self.client.is_user_authorized()
 
     async def send_code(self, phone: str):
-        if not self.client.is_connected:
+        if not self.client.is_connected():
             await self.client.connect()
         self._phone = phone
-        sent_code = await self.client.send_code(phone)
-        self._phone_code_hash = sent_code.phone_code_hash
-        return sent_code
+        return await self.client.send_code_request(phone)
 
-    async def sign_in(self, phone: str, code: str):
-        await self.client.sign_in(phone, self._phone_code_hash, code)
+    async def sign_in(self, phone: str, code: str, password: str = None):
+        try:
+            await self.client.sign_in(phone, code, password=password)
+        except Exception as e:
+            logger.error(f"Sign in error: {e}")
+            raise
 
     async def interactive_login(self):
         """
-        Performs interactive login in the terminal using Pyrogram.
+        Performs interactive login in the terminal using Telethon.
         """
         await self.client.start()
         me = await self.client.get_me()
         print(f"✅ Авторизація успішна! Ви увійшли як: {me.first_name}")
-        await self.client.stop()
+        await self.client.disconnect()
 
-    async def upload_file(self, file_path: str, caption: str = "") -> str:
+    async def test_connection(self):
+        """
+        Tests the connection and authorization status.
+        """
+        print(f"🔄 Перевірка сесії: {config.TELEGRAM_SESSION_NAME}...")
+        try:
+            await self.client.connect()
+            if await self.client.is_user_authorized():
+                me = await self.client.get_me()
+                print(f"✅ Сесія валідна!")
+                print(f"👤 Користувач: {me.first_name} {me.last_name or ''} (@{me.username or 'no_username'})")
+                print(f"🆔 ID: {me.id}")
+            else:
+                print("❌ Помилка: Сесія не авторизована.")
+            await self.client.disconnect()
+        except Exception as e:
+            print(f"❌ Помилка перевірки сесії: {e}")
+            if "password" in str(e).lower():
+                print("💡 Підказка: Потрібен пароль двофакторної аутентифікації (2FA).")
+            elif "database is locked" in str(e).lower():
+                print("💡 Підказка: Файл сесії заблокований іншим процесом.")
+
+    async def upload_file(self, file_path: str, caption: str = "", task_id: Optional[str] = None) -> str:
         """
         Uploads a file to the storage channel and returns the message link.
         """
-        if not self.client.is_connected:
+        from app.core.tasks import task_manager, TaskStatus
+        
+        if not self.client.is_connected():
             await self.client.connect()
             
-        if not await self.is_authorized():
-            raise Exception("Userbot is not authorized. Run 'python main.py login' in terminal.")
+        if not await self.client.is_user_authorized():
+            raise Exception("Userbot is not authorized. Run 'python nx_archivist/main.py login' in terminal.")
 
-        message = await self.client.send_document(
-            chat_id=config.STORAGE_CHANNEL_ID,
-            document=file_path,
+        if task_id:
+            task_manager.update_task(task_id, status=TaskStatus.UPLOADING, progress=0.0)
+            self._current_task_id = task_id
+            self._last_progress_time = time.time()
+            self._last_progress_bytes = 0
+        else:
+            self._current_task_id = None
+
+        # Resolve entity if it's a numeric ID
+        try:
+            entity = await self.client.get_entity(config.STORAGE_CHANNEL_ID)
+        except Exception as e:
+            logger.warning(f"Could not resolve entity {config.STORAGE_CHANNEL_ID} via get_entity: {e}")
+            entity = config.STORAGE_CHANNEL_ID
+
+        message = await self.client.send_file(
+            entity,
+            file_path,
             caption=caption,
-            progress=self._progress_callback
+            progress_callback=self._progress_callback
         )
         
         channel_id_str = str(config.STORAGE_CHANNEL_ID)
-        # Pyrogram message.link is available for public channels
-        if message.link:
-            return message.link
-            
-        # Fallback for private channels
+        
         if channel_id_str.startswith("-100"):
             cid = channel_id_str[4:]
             return f"https://t.me/c/{cid}/{message.id}"
@@ -84,7 +114,24 @@ class Uploader:
         return f"Message ID: {message.id}"
 
     def _progress_callback(self, current, total):
-        # logger.info(f"Uploaded {current}/{total} bytes ({current/total*100:.1f}%)")
-        pass
+        if hasattr(self, '_current_task_id') and self._current_task_id:
+            from app.core.tasks import task_manager
+            now = time.time()
+            duration = now - self._last_progress_time
+            
+            if duration >= 1.0: # Update every second
+                speed = (current - self._last_progress_bytes) / duration
+                progress = (current / total) * 100
+                eta = (total - current) / speed if speed > 0 else 0
+                
+                task_manager.update_task(
+                    self._current_task_id,
+                    progress=progress,
+                    speed=speed,
+                    eta=eta
+                )
+                
+                self._last_progress_time = now
+                self._last_progress_bytes = current
 
 uploader = Uploader()

@@ -124,22 +124,47 @@ class TorrentManager:
                         
         return final_entities
 
-    async def start_selective_download(self, handle: lt.torrent_handle, file_indices: List[int]):
+    async def start_selective_download(self, handle: lt.torrent_handle, file_indices: List[int], task_id: Optional[str] = None):
         """
         Starts downloading only the specified files.
         """
+        from app.core.tasks import task_manager, TaskStatus
+        
         for idx in file_indices:
             handle.file_priority(idx, 4) # Default priority
             
         handle.resume()
         
-        # Wait for download to complete (simplified)
+        if task_id:
+            task_manager.update_task(task_id, status=TaskStatus.DOWNLOADING)
+
+        # Wait for download to complete
         while not handle.status().is_seeding:
             s = handle.status()
-            print(f'\r{s.progress * 100:.2f}% complete (down: {s.download_rate / 1000:.1f} kB/s up: {s.upload_rate / 1000:.1f} kB/s peers: {s.num_peers})', end='')
+            progress = s.progress * 100
+            download_rate = s.download_rate # bytes/s
+            
+            # Calculate ETA
+            eta = 0
+            if download_rate > 0:
+                remaining_bytes = s.total_wanted - s.total_wanted_done
+                eta = remaining_bytes / download_rate
+
+            if task_id:
+                task_manager.update_task(
+                    task_id, 
+                    progress=progress, 
+                    speed=download_rate,
+                    eta=eta
+                )
+            
+            # logger.info(f'\r{progress:.2f}% complete (down: {download_rate / 1000:.1f} kB/s peers: {s.num_peers})')
             await asyncio.sleep(1)
         
-        print(f'\n{handle.name()} complete')
+        if task_id:
+            task_manager.update_task(task_id, progress=100.0, speed=0.0, eta=0.0)
+            
+        logger.info(f'{handle.name()} complete')
 
     def get_file_path(self, handle: lt.torrent_handle, index: int) -> str:
         info = handle.get_torrent_info()

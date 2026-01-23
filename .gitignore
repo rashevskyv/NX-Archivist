@@ -149,3 +149,6 @@ cython_debug/
 # Logs
 bot.log
 *.log
+
+# Telegram Session Files
+*.session

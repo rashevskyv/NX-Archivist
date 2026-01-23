@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     API_HASH: str
     STORAGE_CHANNEL_ID: int
     TELEGRAM_SESSION_STRING: str | None = None
+    TELEGRAM_SESSION_NAME: str = "nx_archivist_userbot"
     
     # RuTracker Auth
     RUTRACKER_USER: str | None = None

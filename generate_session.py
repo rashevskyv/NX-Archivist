@@ -1,10 +1,11 @@
 import asyncio
 import os
-from pyrogram import Client
+from telethon import TelegramClient
+from telethon.sessions import StringSession
 from dotenv import load_dotenv
 
 async def main():
-    print("--- Генератор Session String для Pyrogram ---")
+    print("--- Генератор Session String для Telethon ---")
     
     # Load from .env if exists
     load_dotenv()
@@ -18,9 +19,8 @@ async def main():
     else:
         print(f"✅ Використовую API_ID: {api_id} з файлу .env")
 
-    # Use in_memory=True to avoid sqlite3 issues
-    async with Client("temp_session", api_id=int(api_id), api_hash=api_hash, in_memory=True) as app:
-        session_string = await app.export_session_string()
+    async with TelegramClient(StringSession(), int(api_id), api_hash) as client:
+        session_string = client.session.save()
         print("\n" + "="*50)
         print("ВАШ SESSION_STRING (скопіюйте його повністю):")
         print("="*50)
