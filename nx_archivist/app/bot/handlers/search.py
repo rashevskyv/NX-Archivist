@@ -219,7 +219,18 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
                     original_name = os.path.basename(source_paths[0])
 
                 archive_name = Archivist.generate_obfuscated_name()
-                parts = Archivist.pack_and_split(source_paths, config.DOWNLOAD_DIR, archive_name)
+                
+                def packing_progress(p):
+                    task_manager.update_task(task_id, progress=p)
+
+                # Run CPU-bound packing in a separate thread to keep bot responsive
+                parts = await asyncio.to_thread(
+                    Archivist.pack_and_split,
+                    source_paths, 
+                    config.DOWNLOAD_DIR, 
+                    archive_name,
+                    progress_callback=packing_progress
+                )
                 
                 # 5. Upload
                 for i, part in enumerate(parts):

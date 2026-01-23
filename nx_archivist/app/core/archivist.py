@@ -18,7 +18,8 @@ class Archivist:
     def pack_and_split(cls, 
                        source_files: List[str], 
                        output_dir: str, 
-                       archive_name: Optional[str] = None) -> List[str]:
+                       archive_name: Optional[str] = None,
+                       progress_callback: Optional[callable] = None) -> List[str]:
         """
         Packs files into a ZIP archive and splits it if necessary.
         """
@@ -45,16 +46,29 @@ class Archivist:
         else:
             logger.info("No NSP detected (likely NSZ): using ZIP_STORED")
 
+        # Calculate total size for progress reporting
+        total_size = 0
+        all_files = []
+        for f in source_files:
+            if os.path.isdir(f):
+                for root, dirs, files in os.walk(f):
+                    for file in files:
+                        p = os.path.join(root, file)
+                        all_files.append((p, os.path.relpath(p, os.path.dirname(f))))
+                        total_size += os.path.getsize(p)
+            else:
+                all_files.append((f, os.path.basename(f)))
+                total_size += os.path.getsize(f)
+
+        current_size = 0
         with zipfile.ZipFile(archive_path, 'w', compression=compression, compresslevel=compresslevel) as archive:
-            for f in source_files:
-                if os.path.isdir(f):
-                    for root, dirs, files in os.walk(f):
-                        for file in files:
-                            full_path = os.path.join(root, file)
-                            rel_path = os.path.relpath(full_path, os.path.dirname(f))
-                            archive.write(full_path, arcname=rel_path)
-                else:
-                    archive.write(f, arcname=os.path.basename(f))
+            for full_path, arcname in all_files:
+                archive.write(full_path, arcname=arcname)
+                current_size += os.path.getsize(full_path)
+                if progress_callback and total_size > 0:
+                    # Packing is first 50% of the process (roughly)
+                    progress = (current_size / total_size) * 50
+                    progress_callback(progress)
                 
         # Splitting logic (if file size > split_size)
         file_size = os.path.getsize(archive_path)
@@ -78,6 +92,12 @@ class Archivist:
                 part_size = os.path.getsize(part_path)
                 logger.info(f"Created part {part_num}: {part_path} ({part_size} bytes)")
                 parts.append(part_path)
+                
+                if progress_callback and file_size > 0:
+                    # Splitting is the second 50% of the process
+                    progress = 50 + (part_num * split_size / file_size) * 50
+                    progress_callback(min(progress, 99.9))
+                
                 part_num += 1
                 
         # Remove the original large archive

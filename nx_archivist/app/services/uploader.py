@@ -71,6 +71,16 @@ class Uploader:
             elif "database is locked" in str(e).lower():
                 print("💡 Підказка: Файл сесії заблокований іншим процесом.")
 
+    async def _get_entity(self, entity_id):
+        try:
+            return await self.client.get_entity(entity_id)
+        except ValueError:
+            # If not found in cache, try to find it in dialogs
+            async for dialog in self.client.iter_dialogs():
+                if dialog.id == entity_id:
+                    return dialog.entity
+            raise
+
     async def upload_file(self, file_path: str, caption: str = "", task_id: Optional[str] = None) -> str:
         """
         Uploads a file to the storage channel and returns the message link.
@@ -91,12 +101,12 @@ class Uploader:
         else:
             self._current_task_id = None
 
-        # Resolve entity if it's a numeric ID
+        # Resolve entity robustly
         try:
-            entity = await self.client.get_entity(config.STORAGE_CHANNEL_ID)
+            entity = await self._get_entity(config.STORAGE_CHANNEL_ID)
         except Exception as e:
-            logger.warning(f"Could not resolve entity {config.STORAGE_CHANNEL_ID} via get_entity: {e}")
-            entity = config.STORAGE_CHANNEL_ID
+            logger.error(f"Failed to resolve storage channel {config.STORAGE_CHANNEL_ID}: {e}")
+            raise
 
         message = await self.client.send_file(
             entity,
