@@ -42,11 +42,15 @@ class RuTrackerService:
         results = []
         
         # RuTracker tracker.php table parsing logic
-        # We look for all rows that contain a topic link
-        rows = soup.find_all("tr")
+        # Search results are usually in a table with id 'tor-tbl'
+        table = soup.find("table", id="tor-tbl")
+        if not table:
+            return []
+            
+        rows = table.find_all("tr", id=lambda x: x and x.startswith("t-"))
         for row in rows:
             cells = row.find_all("td")
-            if len(cells) < 4:
+            if len(cells) < 10: # Standard tracker table has ~10 columns
                 continue
                 
             title_cell = row.find("a", class_="tLink")
@@ -56,7 +60,7 @@ class RuTrackerService:
             results.append({
                 "title": title_cell.get_text(strip=True),
                 "id": title_cell["href"].split("t=")[-1],
-                "size": cells[5].get_text(strip=True),
+                "size": cells[5].get_text(strip=True).replace("\xa0", " "),
                 "seeds": cells[6].get_text(strip=True)
             })
             

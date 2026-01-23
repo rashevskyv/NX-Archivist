@@ -120,7 +120,7 @@ async def handle_download(callback: CallbackQuery):
 
 async def process_download_task(task_id: str, topic_id: str, chat_id: int):
     from app.core.tasks import task_manager, TaskStatus
-    import nx_archivist.main as main_module
+    import main as main_module
     from main import logger
     
     bot = main_module.bot_instance
