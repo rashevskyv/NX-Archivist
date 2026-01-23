@@ -73,13 +73,27 @@ class Uploader:
 
     async def _get_entity(self, entity_id):
         try:
+            # Try to get from cache first
             return await self.client.get_entity(entity_id)
-        except ValueError:
-            # If not found in cache, try to find it in dialogs
-            async for dialog in self.client.iter_dialogs():
+        except (ValueError, Exception) as e:
+            logger.info(f"Entity {entity_id} not in cache, fetching dialogs... ({e})")
+            # If not found in cache, try to find it in dialogs (fetch all)
+            async for dialog in self.client.iter_dialogs(limit=None):
                 if dialog.id == entity_id:
                     return dialog.entity
-            raise
+            
+            # If still not found, try to resolve by marked ID if it's a channel
+            if isinstance(entity_id, int) and str(entity_id).startswith("-100"):
+                try:
+                    # Try to get as PeerChannel
+                    from telethon.tl.types import PeerChannel
+                    real_id = int(str(entity_id)[4:])
+                    return await self.client.get_entity(PeerChannel(real_id))
+                except Exception:
+                    pass
+            
+            raise ValueError(f"Could not find entity {entity_id} even after fetching all dialogs. "
+                             f"Make sure the account is a member of the channel/group.")
 
     async def upload_file(self, file_path: str, caption: str = "", task_id: Optional[str] = None) -> str:
         """
