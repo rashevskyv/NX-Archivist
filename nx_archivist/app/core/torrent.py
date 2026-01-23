@@ -7,7 +7,10 @@ from typing import List, Dict, Optional
 from app.core.config import config
 from app.db.base import async_session
 from app.db.models import FilesRegistry, TelegramStorage
+import logging
 from sqlalchemy import select
+
+logger = logging.getLogger(__name__)
 
 class TorrentManager:
     def __init__(self):

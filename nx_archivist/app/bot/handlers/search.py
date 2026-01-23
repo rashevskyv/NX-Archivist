@@ -194,6 +194,9 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
         # 3. Download
         await torrent_manager.start_selective_download(handle, all_to_download, task_id=task_id)
         
+        if bot:
+            await bot.send_message(chat_id, f"✅ Завантаження `{task_id}` завершено. Починаю архівацію та вивантаження...")
+        
         # 4. Packing
         task_manager.update_task(task_id, status=TaskStatus.PACKING, progress=0.0)
         final_links = []
