@@ -42,8 +42,8 @@ class RuTrackerService:
         results = []
         
         # RuTracker tracker.php table parsing logic
-        # Torrent rows always have an id starting with 't-' (e.g., id="t-6007033")
-        rows = soup.find_all("tr", id=lambda x: x and x.startswith("t-"))
+        # Torrent rows always have an id starting with 't-' followed by numbers
+        rows = soup.find_all("tr", id=lambda x: x and x.startswith("t-") and x[2:].isdigit())
         
         for row in rows:
             cells = row.find_all("td")

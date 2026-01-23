@@ -35,14 +35,7 @@ async def cmd_start(message: Message):
 @search_router.message(F.text, ~F.text.startswith("/"))
 async def handle_search(message: Message):
     query = message.text
-    await message.answer(f"Шукаю '{query}' на RuTracker...")
     
-    results = await rutracker.search(query)
-    
-    if not results:
-        await message.answer("Нічого не знайдено.")
-        return
-        
     from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
     kb_status = ReplyKeyboardMarkup(
         keyboard=[
@@ -50,6 +43,14 @@ async def handle_search(message: Message):
         ],
         resize_keyboard=True
     )
+    
+    await message.answer(f"Шукаю '{query}' на RuTracker...", reply_markup=kb_status)
+    
+    results = await rutracker.search(query)
+    
+    if not results:
+        await message.answer("Нічого не знайдено.")
+        return
         
     for res in results[:15]: # Show top 15
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -61,9 +62,6 @@ async def handle_search(message: Message):
             f"🌱 Сідів: {res['seeds']}",
             reply_markup=kb
         )
-    
-    # Send a final message with the status keyboard to ensure it's visible
-    await message.answer("Виберіть реліз або перевірте статус задач:", reply_markup=kb_status)
 
 @search_router.callback_query(F.data.startswith("select_"))
 async def handle_select_release(callback: CallbackQuery):
@@ -152,14 +150,8 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
         
         # 2. Check which files to download
         files_status = await torrent_manager.check_deduplication(handle)
-        to_download_indices = [f["index"] for f in files_status if not f["exists"]]
         
-        if not to_download_indices:
-            task_manager.update_task(task_id, status=TaskStatus.COMPLETED, progress=100.0)
-            if bot: await bot.send_message(chat_id, f"✅ Завдання `{task_id}` завершено: всі файли вже в базі.")
-            return
-            
-        # 3. Download
+        # Collect all indices to download
         all_to_download = []
         for f in files_status:
             if not f["exists"]:
@@ -167,7 +159,13 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
                     all_to_download.extend(f["indices"])
                 else:
                     all_to_download.append(f["index"])
-                    
+        
+        if not all_to_download:
+            task_manager.update_task(task_id, status=TaskStatus.COMPLETED, progress=100.0)
+            if bot: await bot.send_message(chat_id, f"✅ Завдання `{task_id}` завершено: всі файли вже в базі.")
+            return
+            
+        # 3. Download
         await torrent_manager.start_selective_download(handle, all_to_download, task_id=task_id)
         
         # 4. Packing
