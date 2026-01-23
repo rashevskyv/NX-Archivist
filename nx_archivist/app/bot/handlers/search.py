@@ -32,6 +32,32 @@ async def cmd_start(message: Message):
         reply_markup=kb
     )
 
+@search_router.message(Command("status"))
+@search_router.message(F.text == "📊 Статус")
+async def cmd_status(message: Message):
+    from app.core.tasks import task_manager
+    tasks = task_manager.get_active_tasks()
+    
+    if not tasks:
+        await message.answer("Немає активних завдань.")
+        return
+        
+    response = "📊 **Активні завдання:**\n\n"
+    for t in tasks:
+        progress_bar = "▓" * int(t.progress / 10) + "░" * (10 - int(t.progress / 10))
+        speed_kb = t.speed / 1024
+        eta_min = t.eta / 60
+        
+        response += (
+            f"📦 **{t.name}**\n"
+            f"🆔 `{t.id}` | {t.status.value.upper()}\n"
+            f"[{progress_bar}] {t.progress:.1f}%\n"
+            f"⚡ Швидкість: {speed_kb:.1f} KB/s\n"
+            f"⏳ Залишилось: {eta_min:.1f} хв\n\n"
+        )
+    
+    await message.answer(response, parse_mode="Markdown")
+
 @search_router.message(F.text, ~F.text.startswith("/"))
 async def handle_search(message: Message):
     query = message.text
@@ -236,32 +262,6 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
         logger.exception(f"Error in task {task_id}: {e}")
         task_manager.update_task(task_id, status=TaskStatus.FAILED, error=str(e))
         if bot: await bot.send_message(chat_id, f"❌ Помилка у завданні `{task_id}`: {e}")
-
-@search_router.message(Command("status"))
-@search_router.message(F.text == "📊 Статус")
-async def cmd_status(message: Message):
-    from app.core.tasks import task_manager
-    tasks = task_manager.get_active_tasks()
-    
-    if not tasks:
-        await message.answer("Немає активних завдань.")
-        return
-        
-    response = "📊 **Активні завдання:**\n\n"
-    for t in tasks:
-        progress_bar = "▓" * int(t.progress / 10) + "░" * (10 - int(t.progress / 10))
-        speed_kb = t.speed / 1024
-        eta_min = t.eta / 60
-        
-        response += (
-            f"📦 **{t.name}**\n"
-            f"🆔 `{t.id}` | {t.status.value.upper()}\n"
-            f"[{progress_bar}] {t.progress:.1f}%\n"
-            f"⚡ Швидкість: {speed_kb:.1f} KB/s\n"
-            f"⏳ Залишилось: {eta_min:.1f} хв\n\n"
-        )
-    
-    await message.answer(response, parse_mode="Markdown")
 
 @search_router.callback_query(F.data == "check_status")
 async def handle_check_status(callback: CallbackQuery):

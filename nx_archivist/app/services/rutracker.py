@@ -42,21 +42,32 @@ class RuTrackerService:
         results = []
         
         # RuTracker tracker.php table parsing logic
-        # Torrent rows always have an id starting with 't-' followed by numbers
-        rows = soup.find_all("tr", id=lambda x: x and x.startswith("t-") and x[2:].isdigit())
+        # Find all topic links
+        links = soup.find_all("a", class_="tLink")
         
-        for row in rows:
+        for link in links:
+            # Each link is inside a row
+            row = link.find_parent("tr")
+            if not row:
+                continue
+            
             cells = row.find_all("td")
             if len(cells) < 10:
                 continue
-                
-            title_cell = row.find("a", class_="tLink")
-            if not title_cell:
-                continue
+            
+            # Extract ID from data-topic_id or href
+            topic_id = link.get("data-topic_id")
+            if not topic_id:
+                # viewtopic.php?t=6245869
+                href = link.get("href", "")
+                if "t=" in href:
+                    topic_id = href.split("t=")[-1]
+                else:
+                    continue
                 
             results.append({
-                "title": title_cell.get_text(strip=True),
-                "id": title_cell["href"].split("t=")[-1],
+                "title": link.get_text(strip=True),
+                "id": topic_id,
                 "size": cells[5].get_text(strip=True).replace("\xa0", " "),
                 "seeds": cells[6].get_text(strip=True)
             })
