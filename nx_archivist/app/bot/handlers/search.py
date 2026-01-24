@@ -198,26 +198,53 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
         if bot:
             await bot.send_message(chat_id, f"✅ Завантаження `{task_id}` завершено. Починаю архівацію та вивантаження...")
         
-        # 4. Packing
+        # 4. Packing & Uploading
         task_manager.update_task(task_id, status=TaskStatus.PACKING, progress=0.0)
         final_links = []
         
+        # Group entities by category
+        categories = {"Base": [], "Update": [], "DLC": [], "Other": []}
+        for entity in files_status:
+            if entity["exists"]:
+                continue
+            
+            path = ""
+            if entity.get("is_folder"):
+                path = os.path.join(config.DOWNLOAD_DIR, entity["name"])
+            else:
+                path = torrent_manager.get_file_path(handle, entity["index"])
+            
+            cat = Categorizer.categorize(path)
+            if cat not in categories: cat = "Other"
+            categories[cat].append(entity)
+
+        # Special Logic: Group DLCs > 5 into a single "DLC Pack"
+        processing_groups = []
+        for cat, entities in categories.items():
+            if cat == "DLC" and len(entities) > 5:
+                processing_groups.append({
+                    "name": "DLC Pack",
+                    "entities": entities,
+                    "category": "DLC"
+                })
+            else:
+                for ent in entities:
+                    processing_groups.append({
+                        "name": ent["name"],
+                        "entities": [ent],
+                        "category": cat
+                    })
+
         async with async_session() as session:
-            for entity in files_status:
-                if entity["exists"]:
-                    continue
-                    
+            for group in processing_groups:
                 source_paths = []
-                if entity.get("is_folder"):
-                    source_paths = [os.path.join(config.DOWNLOAD_DIR, entity["name"])]
-                    cat = "Folder"
-                    entity_hash = entity["hash"]
-                    original_name = entity["name"]
-                else:
-                    source_paths = [torrent_manager.get_file_path(handle, entity["index"])]
-                    cat = Categorizer.categorize(source_paths[0])
-                    entity_hash = None
-                    original_name = os.path.basename(source_paths[0])
+                total_size = 0
+                for ent in group["entities"]:
+                    if ent.get("is_folder"):
+                        source_paths.append(os.path.join(config.DOWNLOAD_DIR, ent["name"]))
+                    else:
+                        source_paths.append(torrent_manager.get_file_path(handle, ent["index"]))
+                    total_size += ent["size"]
 
                 archive_name = Archivist.generate_obfuscated_name()
                 
@@ -233,15 +260,17 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
                     progress_callback=packing_progress
                 )
                 
-                # 5. Upload
+                # 5. Upload parts
                 for i, part in enumerate(parts):
-                    link = await uploader.upload_file(part, caption=f"{original_name} - Part {i+1}", task_id=task_id)
+                    # No caption as requested
+                    link = await uploader.upload_file(part, task_id=task_id)
                     
+                    # Save to DB
                     new_file = FilesRegistry(
-                        file_original_name=original_name,
-                        file_size=entity["size"],
-                        file_hash=entity_hash,
-                        category=cat
+                        file_original_name=group["name"],
+                        file_size=total_size,
+                        file_hash=None, # Hash is complex for groups
+                        category=group["category"]
                     )
                     session.add(new_file)
                     await session.flush()
@@ -256,8 +285,9 @@ async def process_download_task(task_id: str, topic_id: str, chat_id: int):
                     )
                     session.add(new_storage)
                     
-                    if i == 0:
-                        final_links.append(f"🔹 **{original_name}**: [Посилання]({link})")
+                    # Add to final links for user
+                    part_suffix = f" - Part {i+1}" if len(parts) > 1 else ""
+                    final_links.append(f"🔹 **{group['name']}{part_suffix}**: [Посилання]({link})")
                 
                 # Cleanup
                 if config.DELETE_AFTER_UPLOAD:

@@ -1,8 +1,9 @@
-import zipfile
+import py7zr
 import os
 import secrets
 import string
 import logging
+import asyncio
 from typing import List, Optional
 from app.core.config import config
 
@@ -21,31 +22,20 @@ class Archivist:
                        archive_name: Optional[str] = None,
                        progress_callback: Optional[callable] = None) -> List[str]:
         """
-        Packs files into a ZIP archive and splits it if necessary.
+        Packs files into a 7z archive with AES-256 encryption and splits it if necessary.
         """
         if not archive_name:
             archive_name = cls.generate_obfuscated_name()
             
-        archive_path = os.path.join(output_dir, f"{archive_name}.zip")
+        archive_path = os.path.join(output_dir, f"{archive_name}.7z")
+        password = config.ENCRYPTION_PASSWORD
         
         # Determine split size
         limit_gb = 3.9 if config.IS_TELEGRAM_PREMIUM else 1.9
         split_size = int(limit_gb * 1024 * 1024 * 1024)
         
-        logger.info(f"Packing ZIP archive. Premium: {config.IS_TELEGRAM_PREMIUM}, Limit: {limit_gb}GB ({split_size} bytes)")
+        logger.info(f"Packing 7z archive with AES-256. Premium: {config.IS_TELEGRAM_PREMIUM}, Limit: {limit_gb}GB")
         
-        # Determine compression based on file types
-        compression = zipfile.ZIP_STORED
-        compresslevel = None
-        
-        has_nsp = any(f.lower().endswith('.nsp') for f in source_files)
-        if has_nsp:
-            compression = zipfile.ZIP_DEFLATED
-            compresslevel = 9
-            logger.info("NSP detected: using ZIP_DEFLATED with compresslevel=9")
-        else:
-            logger.info("No NSP detected (likely NSZ): using ZIP_STORED")
-
         # Calculate total size for progress reporting
         total_size = 0
         all_files = []
@@ -61,18 +51,20 @@ class Archivist:
                 total_size += os.path.getsize(f)
 
         current_size = 0
-        with zipfile.ZipFile(archive_path, 'w', compression=compression, compresslevel=compresslevel) as archive:
+        filters = [{"id": py7zr.FILTER_LZMA2, "preset": 9}]
+        
+        with py7zr.SevenZipFile(archive_path, 'w', password=password, filters=filters) as archive:
             for full_path, arcname in all_files:
                 archive.write(full_path, arcname=arcname)
                 current_size += os.path.getsize(full_path)
                 if progress_callback and total_size > 0:
-                    # Packing is first 50% of the process (roughly)
+                    # Packing is first 50% of the process
                     progress = (current_size / total_size) * 50
                     progress_callback(progress)
                 
         # Splitting logic (if file size > split_size)
         file_size = os.path.getsize(archive_path)
-        logger.info(f"ZIP Archive created. Total size: {file_size} bytes ({file_size / (1024**2):.1f} MB)")
+        logger.info(f"7z Archive created. Total size: {file_size / (1024**2):.1f} MB")
         
         if file_size <= split_size:
             return [archive_path]
@@ -89,12 +81,10 @@ class Archivist:
                 with open(part_path, 'wb') as part_file:
                     part_file.write(chunk)
                 
-                part_size = os.path.getsize(part_path)
-                logger.info(f"Created part {part_num}: {part_path} ({part_size} bytes)")
                 parts.append(part_path)
                 
                 if progress_callback and file_size > 0:
-                    # Splitting is the second 50% of the process
+                    # Splitting is the second 50%
                     progress = 50 + (part_num * split_size / file_size) * 50
                     progress_callback(min(progress, 99.9))
                 

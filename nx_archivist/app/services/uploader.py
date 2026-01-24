@@ -95,7 +95,7 @@ class Uploader:
             raise ValueError(f"Could not find entity {entity_id} even after fetching all dialogs. "
                              f"Make sure the account is a member of the channel/group.")
 
-    async def upload_file(self, file_path: str, caption: str = "", task_id: Optional[str] = None) -> str:
+    async def upload_file(self, file_path: str, caption: Optional[str] = None, task_id: Optional[str] = None) -> str:
         """
         Uploads a file to the storage channel and returns the message link.
         """
