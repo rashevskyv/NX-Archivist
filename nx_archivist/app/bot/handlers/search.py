@@ -49,9 +49,14 @@ async def cmd_status(message: Message):
         speed_kb = t.speed / 1024
         eta_min = t.eta / 60
         
+        status_line = f"🆔 `{t.id}` | {t.status.value.upper()}"
+        if t.status == TaskStatus.DOWNLOADING:
+            size_str = f"{t.total_size / (1024**3):.2f} GB" if t.total_size > 1024**3 else f"{t.total_size / (1024**2):.1f} MB"
+            status_line += f" | 🌱 {t.seeds} | 💾 {size_str}"
+
         response += (
             f"📦 **{t.name}**\n"
-            f"🆔 `{t.id}` | {t.status.value.upper()}\n"
+            f"{status_line}\n"
             f"[{progress_bar}] {t.progress:.1f}%\n"
             f"⚡ Швидкість: {speed_kb:.1f} KB/s\n"
             f"⏳ Залишилось: {eta_min:.1f} хв\n\n"

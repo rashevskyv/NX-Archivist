@@ -18,6 +18,8 @@ class TaskInfo(BaseModel):
     status: TaskStatus
     progress: float = 0.0  # 0.0 to 100.0
     speed: float = 0.0     # bytes/s
+    seeds: int = 0
+    total_size: int = 0    # bytes
     eta: float = 0.0       # seconds
     error: Optional[str] = None
     start_time: float

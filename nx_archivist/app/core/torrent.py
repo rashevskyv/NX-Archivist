@@ -158,10 +158,12 @@ class TorrentManager:
                     task_id, 
                     progress=progress, 
                     speed=download_rate,
+                    seeds=s.num_seeds,
+                    total_size=s.total_wanted,
                     eta=eta
                 )
             
-            logger.info(f'[{task_id or "TORRENT"}] {progress:.1f}% | Speed: {download_rate / 1024:.1f} KB/s | Peers: {s.num_peers}')
+            logger.info(f'[{task_id or "TORRENT"}] {progress:.1f}% | Speed: {download_rate / 1024:.1f} KB/s | Seeds: {s.num_seeds} | Size: {s.total_wanted / (1024**3):.2f} GB | Peers: {s.num_peers}')
             await asyncio.sleep(2) # Reduced frequency for console logs
         
         if task_id:
