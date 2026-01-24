@@ -161,8 +161,8 @@ class TorrentManager:
                     eta=eta
                 )
             
-            # logger.info(f'\r{progress:.2f}% complete (down: {download_rate / 1000:.1f} kB/s peers: {s.num_peers})')
-            await asyncio.sleep(1)
+            logger.info(f'[{task_id or "TORRENT"}] {progress:.1f}% | Speed: {download_rate / 1024:.1f} KB/s | Peers: {s.num_peers}')
+            await asyncio.sleep(2) # Reduced frequency for console logs
         
         if task_id:
             task_manager.update_task(task_id, progress=100.0, speed=0.0, eta=0.0)

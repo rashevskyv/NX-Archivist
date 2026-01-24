@@ -55,6 +55,7 @@ class Archivist:
         
         with py7zr.SevenZipFile(archive_path, 'w', password=password, filters=filters) as archive:
             for full_path, arcname in all_files:
+                logger.info(f"Adding to archive: {arcname} ({os.path.getsize(full_path) / (1024**2):.1f} MB)")
                 archive.write(full_path, arcname=arcname)
                 current_size += os.path.getsize(full_path)
                 if progress_callback and total_size > 0:
@@ -81,6 +82,7 @@ class Archivist:
                 with open(part_path, 'wb') as part_file:
                     part_file.write(chunk)
                 
+                logger.info(f"Created part {part_num}: {part_path} ({os.path.getsize(part_path) / (1024**2):.1f} MB)")
                 parts.append(part_path)
                 
                 if progress_callback and file_size > 0:

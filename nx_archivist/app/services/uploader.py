@@ -122,12 +122,16 @@ class Uploader:
             logger.error(f"Failed to resolve storage channel {config.STORAGE_CHANNEL_ID}: {e}")
             raise
 
+        logger.info(f"[{task_id or 'UPLOAD'}] Starting upload: {os.path.basename(file_path)} ({os.path.getsize(file_path) / (1024**2):.1f} MB)")
+        
         message = await self.client.send_file(
             entity,
             file_path,
             caption=caption,
             progress_callback=self._progress_callback
         )
+        
+        logger.info(f"[{task_id or 'UPLOAD'}] Upload complete: {os.path.basename(file_path)}")
         
         channel_id_str = str(config.STORAGE_CHANNEL_ID)
         
@@ -143,10 +147,12 @@ class Uploader:
             now = time.time()
             duration = now - self._last_progress_time
             
-            if duration >= 1.0: # Update every second
+            if duration >= 2.0: # Update console/task every 2 seconds
                 speed = (current - self._last_progress_bytes) / duration
                 progress = (current / total) * 100
                 eta = (total - current) / speed if speed > 0 else 0
+                
+                logger.info(f"[{self._current_task_id}] Uploading: {progress:.1f}% | Speed: {speed / 1024:.1f} KB/s")
                 
                 task_manager.update_task(
                     self._current_task_id,

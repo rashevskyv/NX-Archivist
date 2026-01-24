@@ -51,6 +51,7 @@ Create a comprehensive Telegram-based "Pirate Cloud" ecosystem for Nintendo Swit
 - [x] Background task manager
 - [x] Real-time status reporting (Speed, ETA, Progress)
 - [x] Multi-threaded archiving
+- [x] **Detailed Console Logging**: Real-time logs for downloads, archiving, and uploads.
 
 ### Phase 3: Refinement & Security [COMPLETED]
 - [x] **AES-256 Encryption** in Archivist
